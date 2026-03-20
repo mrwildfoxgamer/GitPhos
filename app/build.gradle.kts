@@ -8,6 +8,9 @@ plugins {
 android {
     compileSdk = 35
     defaultConfig {
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
         applicationId = "com.fox.gitimagebackup"
         namespace = "com.fox.gitphos"
         minSdk = 26
