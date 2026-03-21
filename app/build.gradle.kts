@@ -8,11 +8,9 @@ plugins {
 android {
     compileSdk = 35
     defaultConfig {
-        ksp {
-            arg("room.schemaLocation", "$projectDir/schemas")
-        }
-        applicationId = "com.fox.gitimagebackup"
-        namespace = "com.fox.gitphos"
+
+        applicationId = "com.example.gitphos"
+        namespace = "com.example.gitphos"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -28,7 +26,9 @@ android {
         buildConfig = true
     }
 }
-
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
 dependencies {
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")

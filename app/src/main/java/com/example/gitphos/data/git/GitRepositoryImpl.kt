@@ -1,8 +1,9 @@
-package com.gitphos.data.git
+package com.example.gitphos.data.git
 
-import com.gitphos.domain.model.GitErrorCode
-import com.gitphos.domain.model.GitResult
-import com.gitphos.domain.repository.GitRepository
+import com.example.gitphos.domain.model.GitErrorCode
+import com.example.gitphos.domain.model.GitResult
+import com.example.gitphos.domain.repository.GitRepository
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git

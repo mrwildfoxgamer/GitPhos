@@ -1,4 +1,4 @@
-package com.gitphos.domain.model
+package com.example.gitphos.domain.model
 
 sealed class GitResult<out T> {
     data class Success<T>(val data: T) : GitResult<T>()

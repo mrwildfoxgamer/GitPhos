@@ -1,6 +1,6 @@
-package com.gitphos.domain.repository
+package com.example.gitphos.domain.repository
 
-import com.gitphos.domain.model.GitResult
+import com.example.gitphos.domain.model.GitResult
 
 interface GitRepository {
     suspend fun initRepository(localPath: String): GitResult<Unit>

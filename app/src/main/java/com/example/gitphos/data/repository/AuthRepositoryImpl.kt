@@ -32,4 +32,8 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun logout() {
         prefs.clearAuth()
     }
+    // Add this implementation
+    override suspend fun getStoredToken(): String? {
+        return prefs.getStoredToken()
+    }
 }

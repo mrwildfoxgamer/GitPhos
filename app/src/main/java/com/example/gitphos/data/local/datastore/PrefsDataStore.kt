@@ -6,7 +6,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
-
+import kotlinx.coroutines.flow.first
 private val Context.dataStore by preferencesDataStore(name = "gitphos_prefs")
 
 class PrefsDataStore @Inject constructor(
@@ -15,13 +15,13 @@ class PrefsDataStore @Inject constructor(
 
     val userPrefs: Flow<UserPrefs> = context.dataStore.data.map { prefs ->
         UserPrefs(
-            authToken       = prefs[PrefsKeys.AUTH_TOKEN] ?: "",
-            githubUsername  = prefs[PrefsKeys.GITHUB_USERNAME] ?: "",
-            activeRepoPath  = prefs[PrefsKeys.ACTIVE_REPO_PATH] ?: "",
-            activeRepoId    = prefs[PrefsKeys.ACTIVE_REPO_ID] ?: -1L,
+            authToken = prefs[PrefsKeys.AUTH_TOKEN] ?: "",
+            githubUsername = prefs[PrefsKeys.GITHUB_USERNAME] ?: "",
+            activeRepoPath = prefs[PrefsKeys.ACTIVE_REPO_PATH] ?: "",
+            activeRepoId = prefs[PrefsKeys.ACTIVE_REPO_ID] ?: -1L,
             autoSyncEnabled = prefs[PrefsKeys.AUTO_SYNC_ENABLED] ?: false,
             syncIntervalMins = prefs[PrefsKeys.SYNC_INTERVAL_MINS] ?: 30L,
-            theme           = prefs[PrefsKeys.THEME] ?: "SYSTEM"
+            theme = prefs[PrefsKeys.THEME] ?: "SYSTEM"
         )
     }
 
@@ -35,7 +35,7 @@ class PrefsDataStore @Inject constructor(
 
     suspend fun setActiveRepo(id: Long, path: String) {
         context.dataStore.edit {
-            it[PrefsKeys.ACTIVE_REPO_ID]   = id
+            it[PrefsKeys.ACTIVE_REPO_ID] = id
             it[PrefsKeys.ACTIVE_REPO_PATH] = path
         }
     }
@@ -57,5 +57,16 @@ class PrefsDataStore @Inject constructor(
             it.remove(PrefsKeys.AUTH_TOKEN)
             it.remove(PrefsKeys.GITHUB_USERNAME)
         }
+    }
+
+    suspend fun getActiveRepoPath(): String? {
+        // Added '?' before .ifEmpty
+        return context.dataStore.data.map { it[PrefsKeys.ACTIVE_REPO_PATH] }.first()
+            ?.ifEmpty { null }
+    }
+
+    suspend fun getStoredToken(): String? {
+        // Added '?' before .ifEmpty
+        return context.dataStore.data.map { it[PrefsKeys.AUTH_TOKEN] }.first()?.ifEmpty { null }
     }
 }
