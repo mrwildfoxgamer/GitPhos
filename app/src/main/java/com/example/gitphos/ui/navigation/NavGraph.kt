@@ -23,6 +23,12 @@ import com.example.gitphos.ui.dashboard.DashboardScreen
 import com.example.gitphos.ui.picker.PickerEffect
 import com.example.gitphos.ui.picker.PickerScreen
 import com.example.gitphos.ui.picker.PickerViewModel
+import com.example.gitphos.ui.repo.RepoEffect
+import com.example.gitphos.ui.repo.RepoScreen
+import com.example.gitphos.ui.repo.RepoViewModel
+import com.example.gitphos.ui.sync.SyncEffect
+import com.example.gitphos.ui.sync.SyncScreen
+import com.example.gitphos.ui.sync.SyncViewModel // <-- Add this right under SyncScreen
 
 // --- Routes ---
 
@@ -94,19 +100,48 @@ fun NavGraphBuilder.pickerScreen(
         PickerScreen(state = state, onEvent = viewModel::onEvent)
     }
 }
-// --- Root NavHost (wire all screens here as they are built) ---
-// Example usage in MainActivity or AppNavHost:
-//
-// @Composable
-// fun AppNavHost(
-//     navController: NavHostController = rememberNavController(),
-//     startDestination: String = Screen.Auth.route,
-// ) {
-//     NavHost(navController = navController, startDestination = startDestination) {
-//         authScreen(navController)
-//         // dashboardScreen(navController)  ← Step 12.2
-//         // pickerScreen(navController)     ← Step 12.3
-//         // repoScreen(navController)       ← Step 12.4
-//         // syncScreen(navController)       ← Step 12.5
+fun NavGraphBuilder.repoScreen(
+    onNavigateBack: () -> Unit
+) {
+    composable(Screen.Repo.route) {
+        val viewModel: RepoViewModel = hiltViewModel()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val snackbarHostState = remember { SnackbarHostState() }
+
+        LaunchedEffect(Unit) {
+            viewModel.effect.collect { effect ->
+                when (effect) {
+                    RepoEffect.NavigateBack -> onNavigateBack()
+                    is RepoEffect.ShowMessage -> snackbarHostState.showSnackbar(effect.message)
+                }
+            }
+        }
+
+        RepoScreen(state = state, onEvent = viewModel::onEvent)
+    }
+}
+// syncScreen(navController)       ← Step 12.5
+fun NavGraphBuilder.syncScreen(
+    onNavigateBack: () -> Unit
+) {
+    composable(Screen.Sync.route) {
+        val viewModel: SyncViewModel = hiltViewModel()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val snackbarHostState = remember { SnackbarHostState() }
+
+        LaunchedEffect(Unit) {
+            viewModel.effect.collect { effect ->
+                when (effect) {
+                    SyncEffect.NavigateBack -> onNavigateBack()
+                    is SyncEffect.ShowMessage -> snackbarHostState.showSnackbar(effect.message)
+                }
+            }
+        }
+
+        SyncScreen(state = state, onEvent = viewModel::onEvent)
+    }
+}
+
+
 //     }
 // }
