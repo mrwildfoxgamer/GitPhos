@@ -34,7 +34,7 @@ class DashboardViewModel @Inject constructor(
         loadDashboard()
     }
 
-    private fun loadDashboard() {
+     fun loadDashboard() {
         viewModelScope.launch {
             val activeRepo = repoMetadataDao.getActiveRepo()
             val pendingCount = uploadQueueDao.getPendingItems().size

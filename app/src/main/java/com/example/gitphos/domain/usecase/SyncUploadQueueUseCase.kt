@@ -1,6 +1,8 @@
 package com.example.gitphos.domain.usecase
 
-import com.example.gitphos.domain.model.GitErrorCode
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import com.example.gitphos.domain.model.GitResult
 import com.example.gitphos.domain.model.SyncResult
 import com.example.gitphos.domain.repository.AuthRepository
@@ -9,12 +11,14 @@ import com.example.gitphos.data.local.db.dao.UploadQueueDao
 import com.example.gitphos.data.local.db.dao.SyncHistoryDao
 import com.example.gitphos.data.local.db.entity.UploadQueueEntity
 import com.example.gitphos.data.local.db.entity.SyncHistoryEntity
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
 class SyncUploadQueueUseCase @Inject constructor(
+    @ApplicationContext private val context: Context, // Added Context to resolve URIs
     private val uploadQueueDao: UploadQueueDao,
     private val syncHistoryDao: SyncHistoryDao,
     private val gitRepository: GitRepository,
@@ -61,26 +65,38 @@ class SyncUploadQueueUseCase @Inject constructor(
         token: String
     ): Boolean {
         return try {
-            val sourceFile = File(item.filePath)
-            if (!sourceFile.exists()) {
-                uploadQueueDao.markFailed(item.id, "File not found")
+            val uri = Uri.parse(item.filePath)
+            val fileName = getFileNameFromUri(context, uri) ?: "upload_${System.currentTimeMillis()}.jpg"
+            val destFile = File(localRepoPath, fileName)
+
+            // 1. Open InputStream from the Content URI and copy it to the local Git repo
+            try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: run {
+                    uploadQueueDao.markFailed(item.id, "Cannot access original file")
+                    return false
+                }
+            } catch (e: Exception) {
+                uploadQueueDao.markFailed(item.id, "Failed to copy file: ${e.message}")
                 return false
             }
 
-            val destFile = File(localRepoPath, sourceFile.name)
-            sourceFile.copyTo(destFile, overwrite = true)
-
             uploadQueueDao.markInProgress(item.id)
 
-            val addResult = gitRepository.addFiles(localRepoPath, listOf(sourceFile.name))
+            // 2. Add to Git
+            val addResult = gitRepository.addFiles(localRepoPath, listOf(fileName))
             if (addResult is GitResult.Error) {
                 uploadQueueDao.markFailed(item.id, addResult.message)
                 return false
             }
 
+            // 3. Commit
             val commitResult = gitRepository.commit(
                 localPath = localRepoPath,
-                message = "Upload ${sourceFile.name}",
+                message = "Upload $fileName",
                 authorName = "GitPhos",
                 authorEmail = "gitphos@local"
             )
@@ -89,6 +105,7 @@ class SyncUploadQueueUseCase @Inject constructor(
                 return false
             }
 
+            // 4. Push
             val pushResult = gitRepository.push(localRepoPath, remoteUrl, token)
             if (pushResult is GitResult.Error) {
                 uploadQueueDao.markFailed(item.id, pushResult.message)
@@ -101,6 +118,26 @@ class SyncUploadQueueUseCase @Inject constructor(
             uploadQueueDao.markFailed(item.id, e.message ?: "Unknown error")
             false
         }
+    }
+
+    // Helper function to extract the real filename from a Content URI
+    private fun getFileNameFromUri(context: Context, uri: Uri): String? {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index != -1) {
+                        result = it.getString(index)
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path?.let { File(it).name }
+        }
+        return result
     }
 
     private suspend fun recordHistory(repoPath: String, uploaded: Int, failed: Int) {
