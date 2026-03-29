@@ -1,6 +1,7 @@
 package com.example.gitphos.ui.repo
 
 import com.example.gitphos.data.local.db.entity.RepoMetadataEntity
+import com.example.gitphos.data.remote.model.GithubRepoDto
 
 data class RepoState(
     val repos: List<RepoMetadataEntity> = emptyList(),
@@ -8,6 +9,8 @@ data class RepoState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val showAddDialog: Boolean = false,
+    val availableRemoteRepos: List<GithubRepoDto> = emptyList(),
+    val isFetchingRepos: Boolean = false,
     val dialogName: String = "",
     val dialogRemoteUrl: String = "",
     val dialogLocalPath: String = "",
@@ -26,6 +29,7 @@ sealed interface RepoEvent {
     data class SetActive(val repo: RepoMetadataEntity) : RepoEvent
     data class DeleteRepo(val repo: RepoMetadataEntity) : RepoEvent
     data object NavigateBack : RepoEvent
+    data class RemoteRepoSelected(val repo: GithubRepoDto) : RepoEvent
 }
 
 sealed interface RepoEffect {

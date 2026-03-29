@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.gitphos.data.local.datastore.PrefsDataStore
 import com.example.gitphos.data.local.db.dao.RepoMetadataDao
 import com.example.gitphos.data.local.db.entity.RepoMetadataEntity
+import com.example.gitphos.data.remote.GithubApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,8 @@ import javax.inject.Inject
 @HiltViewModel
 class RepoViewModel @Inject constructor(
     private val repoMetadataDao: RepoMetadataDao,
-    private val prefsDataStore: PrefsDataStore
+    private val prefsDataStore: PrefsDataStore,
+    private val githubApi: GithubApi
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RepoState())
@@ -43,7 +45,19 @@ class RepoViewModel @Inject constructor(
 
     fun onEvent(event: RepoEvent) {
         when (event) {
-            RepoEvent.ShowAddDialog -> _state.update { it.copy(showAddDialog = true, dialogError = null) }
+            RepoEvent.ShowAddDialog -> {
+                _state.update { it.copy(showAddDialog = true, dialogError = null) }
+                fetchRemoteRepos()
+            }
+            is RepoEvent.RemoteRepoSelected -> {
+                _state.update {
+                    it.copy(
+                        dialogName = event.repo.name,
+                        dialogRemoteUrl = event.repo.cloneUrl,
+                        dialogBranch = event.repo.defaultBranch ?: "main"
+                    )
+                }
+            }
             RepoEvent.DismissDialog -> resetDialog()
             is RepoEvent.DialogNameChanged -> _state.update { it.copy(dialogName = event.value) }
             is RepoEvent.DialogRemoteUrlChanged -> _state.update { it.copy(dialogRemoteUrl = event.value) }
@@ -53,6 +67,19 @@ class RepoViewModel @Inject constructor(
             is RepoEvent.SetActive -> setActive(event.repo)
             is RepoEvent.DeleteRepo -> deleteRepo(event.repo)
             RepoEvent.NavigateBack -> viewModelScope.launch { _effect.send(RepoEffect.NavigateBack) }
+        }
+    }
+
+    private fun fetchRemoteRepos() {
+        viewModelScope.launch {
+            _state.update { it.copy(isFetchingRepos = true) }
+            try {
+                val token = prefsDataStore.getStoredToken() ?: return@launch
+                val repos = githubApi.getUserRepos("Bearer $token")
+                _state.update { it.copy(availableRemoteRepos = repos, isFetchingRepos = false) }
+            } catch (e: Exception) {
+                _state.update { it.copy(isFetchingRepos = false) }
+            }
         }
     }
 
@@ -82,7 +109,6 @@ class RepoViewModel @Inject constructor(
             resetDialog()
             _state.update { it.copy(isSaving = false) }
             _effect.send(RepoEffect.ShowMessage("Repository added"))
-            // Auto-set as active if it's the first one
             if (_state.value.repos.size == 1) {
                 setActiveById(id, s.dialogLocalPath.trim())
             }
@@ -118,6 +144,7 @@ class RepoViewModel @Inject constructor(
         _state.update {
             it.copy(
                 showAddDialog = false,
+                availableRemoteRepos = emptyList(),
                 dialogName = "",
                 dialogRemoteUrl = "",
                 dialogLocalPath = "",

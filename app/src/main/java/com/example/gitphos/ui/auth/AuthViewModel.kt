@@ -1,5 +1,6 @@
 package com.example.gitphos.ui.auth
 
+import com.example.gitphos.data.remote.GithubApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gitphos.domain.usecase.ValidateTokenUseCase
@@ -16,6 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val validateTokenUseCase: ValidateTokenUseCase,
+    private val githubApi: GithubApi
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthState())
@@ -28,6 +30,27 @@ class AuthViewModel @Inject constructor(
         when (event) {
             is AuthEvent.TokenChanged -> _state.update { it.copy(token = event.value, error = null) }
             is AuthEvent.Submit -> authenticate()
+            is AuthEvent.HandleOAuthCode -> handleOAuthCode(event.code)
+        }
+    }
+
+    private fun handleOAuthCode(code: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            try {
+                val response = githubApi.getAccessToken(
+                    clientId = "Ov23liDrHHPSD36PjrgJ",
+                    clientSecret = "3d57c6dd13b0e70936412b8db40b0428c0193b18",
+                    code = code
+                )
+                validateTokenUseCase(response.accessToken)
+                    .onSuccess { _effect.send(AuthEffect.NavigateToDashboard) }
+                    .onFailure { throwable ->
+                        _state.update { it.copy(isLoading = false, error = throwable.message ?: "Invalid token") }
+                    }
+            } catch (e: Exception) {
+                _state.update { it.copy(isLoading = false, error = e.message ?: "OAuth failed") }
+            }
         }
     }
 
@@ -42,9 +65,7 @@ class AuthViewModel @Inject constructor(
             validateTokenUseCase(token)
                 .onSuccess { _effect.send(AuthEffect.NavigateToDashboard) }
                 .onFailure { throwable ->
-                    _state.update {
-                        it.copy(isLoading = false, error = throwable.message ?: "Invalid token")
-                    }
+                    _state.update { it.copy(isLoading = false, error = throwable.message ?: "Invalid token") }
                 }
         }
     }

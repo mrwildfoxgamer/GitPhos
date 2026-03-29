@@ -14,6 +14,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +38,6 @@ fun RepoScreen(
                 title = { Text("Repositories") },
                 navigationIcon = {
                     IconButton(onClick = { onEvent(RepoEvent.NavigateBack) }) {
-                        // Updated to AutoMirrored ArrowBack
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -134,34 +137,82 @@ private fun RepoCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddRepoDialog(
     state: RepoState,
     onEvent: (RepoEvent) -> Unit
 ) {
-    // 1. Define the directory picker launcher
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let {
-            // 2. Convert the tree URI to an absolute path for JGit/java.io.File
             val path = it.path ?: ""
             val absolutePath = if (path.startsWith("/tree/primary:")) {
                 "/storage/emulated/0/" + path.substringAfter("/tree/primary:")
             } else {
-                it.toString() // Fallback if it's not on the primary shared storage
+                it.toString()
             }
-
-            // Trigger the existing event to update the state
             onEvent(RepoEvent.DialogLocalPathChanged(absolutePath))
         }
     }
+
+    var expanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = { onEvent(RepoEvent.DismissDialog) },
         title = { Text("Add Repository") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = state.dialogRemoteUrl,
+                        onValueChange = { onEvent(RepoEvent.DialogRemoteUrlChanged(it)) },
+                        label = { Text("Remote URL") },
+                        placeholder = { Text("https://github.com/user/repo") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        when {
+                            state.isFetchingRepos -> {
+                                DropdownMenuItem(
+                                    text = { Text("Fetching repositories...") },
+                                    onClick = {}
+                                )
+                            }
+                            state.availableRemoteRepos.isEmpty() -> {
+                                DropdownMenuItem(
+                                    text = { Text("No repositories found") },
+                                    onClick = { expanded = false }
+                                )
+                            }
+                            else -> {
+                                state.availableRemoteRepos.forEach { repo ->
+                                    DropdownMenuItem(
+                                        text = { Text(repo.name) },
+                                        onClick = {
+                                            onEvent(RepoEvent.RemoteRepoSelected(repo))
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = state.dialogName,
                     onValueChange = { onEvent(RepoEvent.DialogNameChanged(it)) },
@@ -169,16 +220,7 @@ private fun AddRepoDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = state.dialogRemoteUrl,
-                    onValueChange = { onEvent(RepoEvent.DialogRemoteUrlChanged(it)) },
-                    label = { Text("Remote URL") },
-                    placeholder = { Text("https://github.com/user/repo") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
 
-                // 3. Wrap the Local Path field in a Row with a Folder Icon Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -188,7 +230,7 @@ private fun AddRepoDialog(
                         value = state.dialogLocalPath,
                         onValueChange = { onEvent(RepoEvent.DialogLocalPathChanged(it)) },
                         label = { Text("Local Path") },
-                        placeholder = { Text("/storage/emulated/0/MyRepo") }, // Removed /data/ hardcode
+                        placeholder = { Text("/storage/emulated/0/MyRepo") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
@@ -204,6 +246,7 @@ private fun AddRepoDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 if (state.dialogError != null) {
                     Text(
                         state.dialogError,
@@ -246,7 +289,6 @@ private fun RepoPreviewList() {
                 isLoading = false,
                 activeRepoId = 1L,
                 repos = listOf(
-                    // Removed /data/ hardcode for Android Studio Linting
                     RepoMetadataEntity(id = 1, name = "my-photos", localPath = "/storage/emulated/0/repo", remoteUrl = "https://github.com/user/my-photos", isActive = true),
                     RepoMetadataEntity(id = 2, name = "backup", localPath = "/storage/emulated/0/backup", remoteUrl = "https://github.com/user/backup")
                 )

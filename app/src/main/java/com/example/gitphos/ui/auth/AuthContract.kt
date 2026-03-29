@@ -8,6 +8,8 @@ data class AuthState(
 sealed interface AuthEvent {
     data class TokenChanged(val value: String) : AuthEvent
     data object Submit : AuthEvent
+
+    data class HandleOAuthCode(val code: String) : AuthEvent
 }
 
 sealed interface AuthEffect {
