@@ -88,4 +88,6 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    implementation("androidx.compose.material:material-icons-extended")
 }

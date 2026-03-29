@@ -1,13 +1,17 @@
 package com.example.gitphos.ui.repo
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +34,8 @@ fun RepoScreen(
                 title = { Text("Repositories") },
                 navigationIcon = {
                     IconButton(onClick = { onEvent(RepoEvent.NavigateBack) }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        // Updated to AutoMirrored ArrowBack
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -134,6 +139,24 @@ private fun AddRepoDialog(
     state: RepoState,
     onEvent: (RepoEvent) -> Unit
 ) {
+    // 1. Define the directory picker launcher
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            // 2. Convert the tree URI to an absolute path for JGit/java.io.File
+            val path = it.path ?: ""
+            val absolutePath = if (path.startsWith("/tree/primary:")) {
+                "/storage/emulated/0/" + path.substringAfter("/tree/primary:")
+            } else {
+                it.toString() // Fallback if it's not on the primary shared storage
+            }
+
+            // Trigger the existing event to update the state
+            onEvent(RepoEvent.DialogLocalPathChanged(absolutePath))
+        }
+    }
+
     AlertDialog(
         onDismissRequest = { onEvent(RepoEvent.DismissDialog) },
         title = { Text("Add Repository") },
@@ -154,14 +177,26 @@ private fun AddRepoDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = state.dialogLocalPath,
-                    onValueChange = { onEvent(RepoEvent.DialogLocalPathChanged(it)) },
-                    label = { Text("Local Path") },
-                    placeholder = { Text("/data/data/com.example.gitphos/repo") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+
+                // 3. Wrap the Local Path field in a Row with a Folder Icon Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = state.dialogLocalPath,
+                        onValueChange = { onEvent(RepoEvent.DialogLocalPathChanged(it)) },
+                        label = { Text("Local Path") },
+                        placeholder = { Text("/storage/emulated/0/MyRepo") }, // Removed /data/ hardcode
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { folderPickerLauncher.launch(null) }) {
+                        Icon(Icons.Default.Folder, contentDescription = "Pick Folder")
+                    }
+                }
+
                 OutlinedTextField(
                     value = state.dialogBranch,
                     onValueChange = { onEvent(RepoEvent.DialogBranchChanged(it)) },
@@ -211,8 +246,9 @@ private fun RepoPreviewList() {
                 isLoading = false,
                 activeRepoId = 1L,
                 repos = listOf(
-                    RepoMetadataEntity(id = 1, name = "my-photos", localPath = "/data/repo", remoteUrl = "https://github.com/user/my-photos", isActive = true),
-                    RepoMetadataEntity(id = 2, name = "backup", localPath = "/data/backup", remoteUrl = "https://github.com/user/backup")
+                    // Removed /data/ hardcode for Android Studio Linting
+                    RepoMetadataEntity(id = 1, name = "my-photos", localPath = "/storage/emulated/0/repo", remoteUrl = "https://github.com/user/my-photos", isActive = true),
+                    RepoMetadataEntity(id = 2, name = "backup", localPath = "/storage/emulated/0/backup", remoteUrl = "https://github.com/user/backup")
                 )
             ),
             onEvent = {}
