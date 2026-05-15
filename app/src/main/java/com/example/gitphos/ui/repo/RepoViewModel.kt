@@ -6,11 +6,13 @@ import com.example.gitphos.data.local.datastore.PrefsDataStore
 import com.example.gitphos.data.local.db.dao.RepoMetadataDao
 import com.example.gitphos.data.local.db.entity.RepoMetadataEntity
 import com.example.gitphos.data.remote.GithubApi
+import com.example.gitphos.data.remote.model.CreateRepoRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -67,6 +69,15 @@ class RepoViewModel @Inject constructor(
             is RepoEvent.SetActive -> setActive(event.repo)
             is RepoEvent.DeleteRepo -> deleteRepo(event.repo)
             RepoEvent.NavigateBack -> viewModelScope.launch { _effect.send(RepoEffect.NavigateBack) }
+
+            // New events for Create Mode
+            RepoEvent.ToggleCreateMode -> _state.update {
+                it.copy(isCreateMode = !it.isCreateMode, dialogError = null)
+            }
+            is RepoEvent.DialogNewRepoNameChanged -> _state.update {
+                it.copy(dialogNewRepoName = event.value)
+            }
+            RepoEvent.ConfirmCreateRepo -> createAndSaveRepo()
         }
     }
 
@@ -115,6 +126,53 @@ class RepoViewModel @Inject constructor(
         }
     }
 
+    private fun createAndSaveRepo() {
+        val s = _state.value
+        val repoName = s.dialogNewRepoName.trim()
+        val error = when {
+            repoName.isBlank() -> "Repository name is required"
+            s.dialogLocalPath.isBlank() -> "Local path is required"
+            else -> null
+        }
+        if (error != null) {
+            _state.update { it.copy(dialogError = error) }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(isCreatingRepo = true, dialogError = null) }
+            try {
+                val token = prefsDataStore.getStoredToken()
+                    ?: run {
+                        _state.update { it.copy(isCreatingRepo = false, dialogError = "Not authenticated") }
+                        return@launch
+                    }
+                // Variable fetched but you can optionally use it in CreateRepoRequest or logs later
+                val username = prefsDataStore.userPrefs.first().githubUsername
+
+                val created = githubApi.createRepo(
+                    token = "Bearer $token",
+                    body = CreateRepoRequest(name = repoName)
+                )
+                val id = repoMetadataDao.insert(
+                    RepoMetadataEntity(
+                        name = created.name,
+                        remoteUrl = created.cloneUrl,
+                        localPath = s.dialogLocalPath.trim(),
+                        branch = created.defaultBranch ?: "main"
+                    )
+                )
+                resetDialog()
+                _state.update { it.copy(isCreatingRepo = false) }
+                _effect.send(RepoEffect.ShowMessage("\"${created.name}\" created and added"))
+                if (_state.value.repos.size == 1) {
+                    setActiveById(id, s.dialogLocalPath.trim())
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(isCreatingRepo = false, dialogError = e.message ?: "Failed to create repository") }
+            }
+        }
+    }
+
     private fun setActive(repo: RepoMetadataEntity) {
         viewModelScope.launch {
             setActiveById(repo.id, repo.localPath)
@@ -149,7 +207,9 @@ class RepoViewModel @Inject constructor(
                 dialogRemoteUrl = "",
                 dialogLocalPath = "",
                 dialogBranch = "main",
-                dialogError = null
+                dialogError = null,
+                isCreateMode = false,
+                dialogNewRepoName = ""
             )
         }
     }

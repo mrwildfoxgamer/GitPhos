@@ -15,7 +15,10 @@ data class RepoState(
     val dialogRemoteUrl: String = "",
     val dialogLocalPath: String = "",
     val dialogBranch: String = "main",
-    val dialogError: String? = null
+    val dialogError: String? = null,
+    val isCreateMode: Boolean = false,
+    val dialogNewRepoName: String = "",
+    val isCreatingRepo: Boolean = false
 )
 
 sealed interface RepoEvent {
@@ -30,6 +33,10 @@ sealed interface RepoEvent {
     data class DeleteRepo(val repo: RepoMetadataEntity) : RepoEvent
     data object NavigateBack : RepoEvent
     data class RemoteRepoSelected(val repo: GithubRepoDto) : RepoEvent
+
+    data object ToggleCreateMode : RepoEvent
+    data class DialogNewRepoNameChanged(val value: String) : RepoEvent
+    data object ConfirmCreateRepo : RepoEvent
 }
 
 sealed interface RepoEffect {

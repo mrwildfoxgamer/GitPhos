@@ -9,7 +9,8 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.POST
-
+import com.example.gitphos.data.remote.model.CreateRepoRequest
+import retrofit2.http.Body
 interface GithubApi {
 
     @GET("user")
@@ -30,4 +31,11 @@ interface GithubApi {
         @Field("client_secret") clientSecret: String,
         @Field("code") code: String
     ): AccessTokenResponse
+
+
+    @POST("user/repos")
+    suspend fun createRepo(
+        @Header("Authorization") token: String,
+        @Body body: CreateRepoRequest
+    ): GithubRepoDto
 }

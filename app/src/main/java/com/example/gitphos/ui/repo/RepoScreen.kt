@@ -150,9 +150,7 @@ private fun AddRepoDialog(
             val path = it.path ?: ""
             val absolutePath = if (path.startsWith("/tree/primary:")) {
                 "/storage/emulated/0/" + path.substringAfter("/tree/primary:")
-            } else {
-                it.toString()
-            }
+            } else it.toString()
             onEvent(RepoEvent.DialogLocalPathChanged(absolutePath))
         }
     }
@@ -165,62 +163,94 @@ private fun AddRepoDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+                // Mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = state.dialogRemoteUrl,
-                        onValueChange = { onEvent(RepoEvent.DialogRemoteUrlChanged(it)) },
-                        label = { Text("Remote URL") },
-                        placeholder = { Text("https://github.com/user/repo") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                    FilterChip(
+                        selected = !state.isCreateMode,
+                        onClick = { if (state.isCreateMode) onEvent(RepoEvent.ToggleCreateMode) },
+                        label = { Text("Existing Repo") },
+                        modifier = Modifier.weight(1f)
                     )
-                    ExposedDropdownMenu(
+                    FilterChip(
+                        selected = state.isCreateMode,
+                        onClick = { if (!state.isCreateMode) onEvent(RepoEvent.ToggleCreateMode) },
+                        label = { Text("Create New") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                HorizontalDivider()
+
+                if (state.isCreateMode) {
+                    // Create new repo fields
+                    OutlinedTextField(
+                        value = state.dialogNewRepoName,
+                        onValueChange = { onEvent(RepoEvent.DialogNewRepoNameChanged(it)) },
+                        label = { Text("New Repo Name") },
+                        placeholder = { Text("my-photos") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "A private repository will be created on your GitHub account.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    // Existing repo fields
+                    ExposedDropdownMenuBox(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        onExpandedChange = { expanded = !expanded }
                     ) {
-                        when {
-                            state.isFetchingRepos -> {
-                                DropdownMenuItem(
-                                    text = { Text("Fetching repositories...") },
-                                    onClick = {}
+                        OutlinedTextField(
+                            value = state.dialogRemoteUrl,
+                            onValueChange = { onEvent(RepoEvent.DialogRemoteUrlChanged(it)) },
+                            label = { Text("Remote URL") },
+                            placeholder = { Text("https://github.com/user/repo") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                        )
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            when {
+                                state.isFetchingRepos -> DropdownMenuItem(
+                                    text = { Text("Fetching repositories...") }, onClick = {}
                                 )
-                            }
-                            state.availableRemoteRepos.isEmpty() -> {
-                                DropdownMenuItem(
-                                    text = { Text("No repositories found") },
-                                    onClick = { expanded = false }
+                                state.availableRemoteRepos.isEmpty() -> DropdownMenuItem(
+                                    text = { Text("No repositories found") }, onClick = { expanded = false }
                                 )
-                            }
-                            else -> {
-                                state.availableRemoteRepos.forEach { repo ->
+                                else -> state.availableRemoteRepos.forEach { repo ->
                                     DropdownMenuItem(
                                         text = { Text(repo.name) },
-                                        onClick = {
-                                            onEvent(RepoEvent.RemoteRepoSelected(repo))
-                                            expanded = false
-                                        }
+                                        onClick = { onEvent(RepoEvent.RemoteRepoSelected(repo)); expanded = false }
                                     )
                                 }
                             }
                         }
                     }
+
+                    OutlinedTextField(
+                        value = state.dialogName,
+                        onValueChange = { onEvent(RepoEvent.DialogNameChanged(it)) },
+                        label = { Text("Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = state.dialogBranch,
+                        onValueChange = { onEvent(RepoEvent.DialogBranchChanged(it)) },
+                        label = { Text("Branch") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
-                OutlinedTextField(
-                    value = state.dialogName,
-                    onValueChange = { onEvent(RepoEvent.DialogNameChanged(it)) },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
+                // Local path (shared between both modes)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -239,14 +269,6 @@ private fun AddRepoDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    value = state.dialogBranch,
-                    onValueChange = { onEvent(RepoEvent.DialogBranchChanged(it)) },
-                    label = { Text("Branch") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 if (state.dialogError != null) {
                     Text(
                         state.dialogError,
@@ -258,13 +280,16 @@ private fun AddRepoDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onEvent(RepoEvent.ConfirmAdd) },
-                enabled = !state.isSaving
+                onClick = {
+                    if (state.isCreateMode) onEvent(RepoEvent.ConfirmCreateRepo)
+                    else onEvent(RepoEvent.ConfirmAdd)
+                },
+                enabled = !state.isSaving && !state.isCreatingRepo
             ) {
-                if (state.isSaving) {
+                if (state.isSaving || state.isCreatingRepo) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Add")
+                    Text(if (state.isCreateMode) "Create" else "Add")
                 }
             }
         },

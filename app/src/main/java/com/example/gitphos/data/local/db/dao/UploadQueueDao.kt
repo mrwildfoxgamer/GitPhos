@@ -22,13 +22,16 @@ interface UploadQueueDao {
     @Query("SELECT * FROM upload_queue WHERE status = 'PENDING' ORDER BY addedAt ASC")
     suspend fun getPendingItems(): List<UploadQueueEntity>
 
+    @Query("SELECT * FROM upload_queue WHERE status = 'COMPLETED'")
+    suspend fun getCompletedItems(): List<UploadQueueEntity>
+
     @Query("UPDATE upload_queue SET status = :status, errorMessage = :error WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String, error: String? = null)
 
     @Query("UPDATE upload_queue SET retryCount = retryCount + 1 WHERE id = :id")
     suspend fun incrementRetry(id: Long)
 
-    @Query("DELETE FROM upload_queue WHERE status = 'DONE'")
+    @Query("DELETE FROM upload_queue WHERE status = 'COMPLETED'")
     suspend fun clearCompleted()
 
     @Query("UPDATE upload_queue SET status = 'IN_PROGRESS' WHERE id = :id")

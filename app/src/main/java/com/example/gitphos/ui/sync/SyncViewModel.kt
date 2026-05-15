@@ -1,5 +1,6 @@
 package com.example.gitphos.ui.sync
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -99,8 +101,23 @@ class SyncViewModel @Inject constructor(
                 _state.update { it.copy(isSyncing = false, workStatus = WorkStatus.Idle) }
             }
             SyncEvent.ClearCompleted -> viewModelScope.launch {
+                val completed = uploadQueueDao.getCompletedItems()
+                val activeRepo = repoMetadataDao.getActiveRepo()
+                val localRepoPath = prefsDataStore.getActiveRepoPath()
+
+                if (localRepoPath != null) {
+                    completed.forEach { item ->
+                        // item.filePath is the original content:// URI
+                        // the copied file is in the local repo folder with the same filename
+                        val fileName = Uri.parse(item.filePath).lastPathSegment
+                            ?: item.filePath.substringAfterLast("/")
+                        val copiedFile = File(localRepoPath, fileName)
+                        if (copiedFile.exists()) copiedFile.delete()
+                    }
+                }
+
                 uploadQueueDao.clearCompleted()
-                _effect.send(SyncEffect.ShowMessage("Completed items cleared"))
+                _effect.send(SyncEffect.ShowMessage("${completed.size} completed item(s) cleared"))
             }
             SyncEvent.NavigateBack -> viewModelScope.launch {
                 _effect.send(SyncEffect.NavigateBack)
