@@ -1,5 +1,7 @@
 package com.example.gitphos.ui.picker
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +9,7 @@ import com.example.gitphos.data.local.db.dao.RepoMetadataDao
 import com.example.gitphos.data.local.db.dao.UploadQueueDao
 import com.example.gitphos.data.local.db.entity.UploadQueueEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +21,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PickerViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val uploadQueueDao: UploadQueueDao,
     private val repoMetadataDao: RepoMetadataDao
 ) : ViewModel() {
@@ -75,6 +79,16 @@ class PickerViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isAdding = true) }
             uris.forEach { uri ->
+                // Take persistable permission BEFORE storing the URI
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: SecurityException) {
+                    // URI doesn't support persistable permissions (e.g. file://)
+                    // proceed anyway; it'll only fail if app is killed before sync
+                }
                 uploadQueueDao.insert(
                     UploadQueueEntity(
                         repoId = repoId,
