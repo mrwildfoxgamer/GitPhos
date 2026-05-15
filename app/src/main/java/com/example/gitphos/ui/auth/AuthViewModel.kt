@@ -1,8 +1,9 @@
 package com.example.gitphos.ui.auth
 
-import com.example.gitphos.data.remote.GithubApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gitphos.data.remote.GithubApi
+import com.example.gitphos.domain.repository.AuthRepository
 import com.example.gitphos.domain.usecase.ValidateTokenUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -17,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val validateTokenUseCase: ValidateTokenUseCase,
-    private val githubApi: GithubApi
+    private val githubApi: GithubApi,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthState())
@@ -25,6 +27,15 @@ class AuthViewModel @Inject constructor(
 
     private val _effect = Channel<AuthEffect>(Channel.BUFFERED)
     val effect = _effect.receiveAsFlow()
+
+    init {
+        viewModelScope.launch {
+            val token = authRepository.getStoredToken()
+            if (!token.isNullOrBlank()) {
+                _effect.send(AuthEffect.NavigateToDashboard)
+            }
+        }
+    }
 
     fun onEvent(event: AuthEvent) {
         when (event) {
